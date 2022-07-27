@@ -1,20 +1,20 @@
 {
   "name": "cbae",
-  "version": "0.9.1",
-  "homepage" : "https://github.com/john32b/cbae",
+  "version": "0.9.2",
+  "homepage": "https://github.com/john32b/cbae",
   "description": "Cue Bin CD Audio Encoder",
   "author": "John32B",
   "license": "ISC",
-  "keywords" : [ 
-	"cd",
+  "keywords": [
+    "cd",
     "cue",
     "compress",
     "cd image",
     "audio",
     "encode",
     "ffmpeg",
-	"convert"
-	],
+    "convert"
+  ],
   "devDependencies": {
     "@types/node": "^17.0.36",
     "jlib": ">=1.0.0"
@@ -23,7 +23,7 @@
     "test": "echo \"Test\" && exit 1"
   },
   "bin": "bin/cbae.js",
-  "files":[
-	"media/*"
-  ]	
+  "files": [
+    "media/*"
+  ]
 }
