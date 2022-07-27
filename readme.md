@@ -104,6 +104,10 @@ The main thing, takes .cue files and encodes the audio tracks to a codec of your
 > - Press `CTRL+C` to exit the program at any time.
 > - TIP: Do not use MP3 if other codecs are supported in your software. They are there to satisfy some edge cases, like that old KEGA Fusion emulator that only supports MP3 CD images.
 
+**Realtime speed of converting two CDs with a bunch of audio tracks to FLAC**
+
+![Flac Demo](media/demo_flac.apng) 
+
 ## Um, what does CBAE do exactly?
 CBAE takes a `.cue/.bin` file combo, copies the data tracks as they are, and uses FFmpeg to encode the audio tracks into separate files. Finally it produces a new `.cue` file and puts everything into a new folder.
 
@@ -135,6 +139,7 @@ FILE "QUAKE 1 (1996) - Track 11.opus" OPUS
 ---
 
 ## MORE
+
 ### What about CHD ?
 CHD is an entirely different thing and from what I understand CHD can only include lossless audio plus not all programs/emulators support it.
 
