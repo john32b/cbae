@@ -50,7 +50,7 @@ node cbae
 ```bash
 # Encode all .cue cd images from H:\DOS\cdimages into b:\encoded\
 # and convert audio tracks to FLAC
-cbae H:\DOS\cdimages\*.cue -o b:\encoded -enc FLAC
+cbae H:/DOS/cdimages/*.cue -o b:/encoded -enc FLAC
 
 # Encode TombRaider2.cue into the current working directory
 # convert audio to Vorbis 128KBPS, using 12 parallel tasks
