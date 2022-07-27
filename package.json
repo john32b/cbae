@@ -1,6 +1,6 @@
 {
   "name": "cbae",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "homepage": "https://github.com/john32b/cbae",
   "description": "Cue Bin CD Audio Encoder",
   "author": "John32B",
@@ -23,7 +23,8 @@
     "test": "echo \"Test\" && exit 1"
   },
   "bin": "bin/cbae.js",
-  "files": [
-    "media/*"
-  ]
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/john32b/cbae"
+  }
 }
