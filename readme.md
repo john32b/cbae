@@ -29,7 +29,7 @@ npm i cbae --location=global
 # Run
 cbae
 ```
-- Or download manually from github
+- Or download the script manually from github
 ```bash
 # Clone the git to a dir of your choice
 git clone https://github.com/john32b/cbae --depth 1
@@ -37,6 +37,8 @@ git clone https://github.com/john32b/cbae --depth 1
 cd cbae/bin
 node cbae
 ```
+- Or for Windows, download the Executable that does not require NodeJS
+	- You can find this in the [Releases Tab in Github](https://github.com/john32b/cbae/releases)
 
 **In Short, you need:**
 - [NodeJS](https://nodejs.org), version 16+
