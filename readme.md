@@ -41,7 +41,7 @@ node cbae
 	- You can find this in the [Releases Tab in Github](https://github.com/john32b/cbae/releases)
 
 **In Short, you need:**
-- [NodeJS](https://nodejs.org), version 16+
+- [NodeJS](https://nodejs.org), version 16+ (*or not if you are on Windows and get the standalone version*)
 - [FFmpeg](http://ffmpeg.org/), set on your PATH *(So it can run from anywhere by calling ffmpeg)* 
 - Some basic command line knowledge is a plus
 
