@@ -1,5 +1,17 @@
-/.vscode
+.vscode
 /dev
-/node_modules
-/app
-/cbae.js
+/source/node_modules/@types/
+
+# jLib is a personal JS library
+# it had many more files in it, so I am just including the ones CBAE uses
+# I know it is inefficient, but it works
+
+/source/node_modules/jlib/*
+!/source/node_modules/jlib/package.json
+!/source/node_modules/jlib/Baseapp.js
+!/source/node_modules/jlib/FsTools.js
+!/source/node_modules/jlib/Log.js
+!/source/node_modules/jlib/Proc2.js
+!/source/node_modules/jlib/Terminal.js
+!/source/node_modules/jlib/TerTools.js
+!/source/node_modules/jlib/Tools.js
