@@ -22,6 +22,7 @@ const TFS = require('jlib/FsTools');
 const Proc2 = require('jlib/Proc2');
 
 const CD = require('./app/cdinfos');
+const { trace } = require('console');
 
 // DEV: Comment the {L.set} lines for --Release--
 //		If user wants to log he can use "-log LEVEL=FILE"
@@ -91,6 +92,11 @@ const FFMPEG = {
 		FLAC: {
 			name: "Flac Lossless", ext: ".flac",	// Lossless don't need the {min,max} fields
 			get() { return '-c:a|flac'; }
+		},
+
+		RAW: {
+			name: "CDDA Raw", ext:".bin",
+			get() { return '-c:a|pcm_s16le|-f|s16le|-ar|44100|-ac|2'; }
 		}
 	},
 
@@ -151,6 +157,10 @@ function createOuputDir(cd, out)
 	path = PATH.join(path,cd.CD_TITLE);
 	path += ' [e]' // encoded;
 
+	if(ONLY) {
+		path += ` [only ${ONLY}]`;
+	}
+
 	// Rename it like windows does, adds (1).. (2).. (3) at the end of the path
 	while(FS.existsSync(path))
 	{	
@@ -178,6 +188,7 @@ function createOuputDir(cd, out)
 
 /**
  * Called when the queue is complete for Encoding
+ * Prints infos only if there were more than 2 files in the input queue
  * @param {Boolean} ue User Exit?
  **/
 function printEStats(ue)
@@ -239,9 +250,16 @@ function taskEncodeCD(file) { return new Promise( (res, rej) =>
 	let z="  - ";	// Formating Text
 	// T.pac(`${z}Output : "${(out0?outDir:"same as .cue")}"\n`);
 	T.pac(`${z}Output : "${outDir}"\n`);
-	T.pac(`${z}Audio Enc : '${ENC.desc}'\n`);
-	T.pac(`${z}Converting Tracks `);
-
+	if(ONLY=="data") {
+		T.pac(`${z}Processing `);
+	}else{
+		T.pac(`${z}Audio Enc : '${ENC.desc}'\n`);
+		if(ENC.ext==".bin")
+			T.pac(`${z}Copying Tracks `);
+		else
+			T.pac(`${z}Converting Tracks `);
+	}
+	
 	// Visual indication that something is going on, along with tasks/maxtasks
 	TT.Prog.start(cd.tracks.length);
 
@@ -255,11 +273,19 @@ function taskEncodeCD(file) { return new Promise( (res, rej) =>
 		{
 			let tr = cd.tracks[i];
 			let outFile = PATH.join(outDir, trackName + tr.noStr);	// - without extension
-			if(tr.isData) 
+			let copyData = tr.isData || (ENC.ext==".bin");
+
+			if( (tr.isData && ONLY=="audio") || (!tr.isData && ONLY=="data") )
+			{
+				yield new Promise(r=>r());	// Skip it. Promise that immediately resolves
+				continue;
+			}
+
+			if(copyData) 
 			{
 				encSize += tr.byteSize;
 				yield TFS.copyPart(cd.getTrackFilePath(i), `${outFile}.bin`, tr.byteStart, tr.byteSize);
-			}
+ 			}
 			else // -- IS AUDIO TRACK
 			{
 				let strIn = FS.createReadStream(cd.getTrackFilePath(i),{ start: tr.byteStart, end: tr.byteStart + tr.byteSize - 1, flags: 'r' });
@@ -290,6 +316,15 @@ function taskEncodeCD(file) { return new Promise( (res, rej) =>
 		
 		// -- All tracks encoded.
 		TT.Prog.stop();
+
+		if(ONLY)
+		{
+			// DO not generate CUE file
+			T.pac(`[OK]\n`);
+			T.pac(z + '{Partial!} Skipping .cue file\n');
+			ELOG.success++;
+			return;
+		}
 
 		// This string "600MB -> 200MB" is used both in the .cue file and printed on console
 		byteStr = `${TL.bytesToMBStr(cd.CD_SIZE)}MB -> ${TL.bytesToMBStr(encSize)}MB`;
@@ -367,15 +402,17 @@ APP.init({
 	name:"CBAE", ver:"0.9", desc:"Cue/Bin Audio Encoder",
 	actions:{
 		e : "!Encode cue/bin to output folder. Will create the new<|>track files and the new .cue file under a subfolder", // ! means default, it will set this action if you dont set any
-		i : "Display cue/bin information "
+		i : "Display cue/bin information ",
 		// d : "Decode back to Raw Audio (only works for FLAC)",
 	},
 	options:{
 		enc : [	"Audio Codec String <yellow>ID:KBPS<!> <|>"+
 				"List of supported Encoders:<|>" +
 				"<yellow>MP3<!>:(32-320) Constant Bitrate | <yellow>MP3V<!>:(44-256) Variable Bitrate <|>" +
-				"<yellow>VORBIS<!>:(64-500) | <yellow>OPUS<!>:(28-500) | <yellow>FLAC<!> | <darkgray,it> e.g. -enc OPUS:64<!>", 1],
-		p  : ["Set max parallel operations.", 1, DEF_THREADS]		// description,required,default value (just for help)
+				"<yellow>VORBIS<!>:(64-500) | <yellow>OPUS<!>:(28-500) | <yellow>FLAC<!> | <yellow>RAW<!> <|>" +
+				"<darkgray,it> e.g. -enc OPUS:64 , -enc FLAC, -enc VORBIS:320<!>", 1],
+		p  : ["Set max parallel operations.", 1, DEF_THREADS],		// description,required,default value (just for help)
+		only : ["Process only <yellow>{data, audio}<!> from the tracks<|>For advanced use, does not generate a .cue file <darkgray>| e.g. -only audio<!>",1],
 	},
 	help:{
 		ehelp:true,
@@ -413,6 +450,9 @@ APP.init({
 
 	T.setCur(false);
 	APP.printBanner();
+
+	var ONLY = APP.option.only;
+	if(ONLY=="data") APP.option.enc="RAW";	// HACK: Avoid errors when checking for audio codec later.
 
 	// -------------------------;
 
@@ -473,13 +513,16 @@ APP.init({
 			if(!Proc2.checkRun('ffmpeg -version')) throw 'Cannot run ffmpeg. Is it set on path?'; 
 			if(!APP.option.enc) throw "You need to set an encoder with '-enc'";
 			ENC = FFMPEG.getEnc(APP.option.enc);
-				if(!ENC) throw "Encoding String Error. Run with '-enc help' for encoding info"
+			// if(!ENC) throw "Encoding String Error. Run with '-enc help' for encoding info"
+			if(!ENC) throw "Encoding String Error."
 		}catch(er){
 			APP.exitError(T.autoColor(er));
 		}
 
+		// - This is called on before any program exit, Normal user Cancel
+		//   Print out the File Queue stats (if more than one file)
 		process.prependOnceListener('exit',(c)=>{
-			TT.Prog.stop(); // DEV: Save to call, if not running, nothing will happen
+			TT.Prog.stop(); // DEV: Safe to call, if not running, nothing will happen
 			if(c==1223) {
 				T.ptag("<:darkmagenta,white> USER ABORT <!,n>");
 				printLine();
@@ -525,26 +568,4 @@ APP.init({
 				});
 		});
 
-	}// -------------------------;
-
-
-
-
-// -------------------------------------------------------;
-// -------------------------------------------------------;
-// -- DEBUGGING TESTS
-// -------------------------------------------------------;
-// - Not exhaustive tests
-
-
-// function tests()
-// {
-// 	let l = console.log;
-// 	l("Checking FFMPEG Encoding Strings :"); 
-// 	let ar = [
-// 		'MP3:','MP3V:1','MP33:44','OGG','vorbis:002','vorbis:42-20','flac:','vorbis:-1:-1',
-// 		"OPUS:0","OPUs:3000","FLac","FLAC:2000","mp3v::0003","mp3:2000","vorbis:128",
-// 		"MP3:MP3","none",'vorbis:1',"vorbis:1000"];
-// 	ar.forEach((e) => l(e, FFMPEG.getEnc(e)) );
-// 	// Seems to work [OK]
-// }
+	}// -- end if action==e --
