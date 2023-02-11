@@ -137,6 +137,31 @@ const FFMPEG = {
 
 
 
+/** Promise, get SHA1 of file/part of file */
+function FilePartSHA1(source, readStart = 0, readLen = 0)
+{
+	return new Promise((res, rej) => {
+	let stat; 
+	try{ stat = FS.statSync(source); } catch(er) {
+		throw `Cannot read file '${source}'`;
+	}
+	let srcSize = stat.size;
+	if (readLen == 0) readLen = srcSize - readStart;	// to the rest of the track
+	// DEV: it needs the -1 for readEnd because it is inclusive | i.e. (readStart to readStart) would read 1 byte
+	// Actual ending position to read
+	let readEnd = readStart + readLen - 1;
+	L.debug("Reading SHA1 for ", source, readStart, readEnd);
+	let strIn = FS.createReadStream(source, { start: readStart, end: readEnd, flags: 'r' });
+		strIn.once('error', er => rej(`Could not read file '${source}'`));
+	var crypto = require("crypto")
+	var hash = crypto.createHash('sha1');
+	strIn.on('readable', () => {
+		let data = strIn.read();
+		if (data) hash.update(data);
+			else res(hash.digest('hex'));
+	});
+	});// -- end promise --
+}// -- end fn --
 
 
 
@@ -402,7 +427,7 @@ APP.init({
 	name:"CBAE", ver:"0.9", desc:"Cue/Bin Audio Encoder",
 	actions:{
 		e : "!Encode cue/bin to output folder. Will create the new<|>track files and the new .cue file under a subfolder", // ! means default, it will set this action if you dont set any
-		i : "Display cue/bin information ",
+		i : "Display cue/bin information along with SHA1 checksum of tracks ",
 		// d : "Decode back to Raw Audio (only works for FLAC)",
 	},
 	options:{
@@ -419,8 +444,8 @@ APP.init({
 		info: 	"<darkgray>  Author : John32B | https://github.com/john32b/cbae <!,n>" + 
 				"  Encodes the Audio Tracks of a cue/bin CD image and builds a new .cue file",
 				
-		usage:"<t,magenta>input:<!> .cue files only. Supports multiple files.<n,t,magenta>output:<!> A new folder will be created for each cue/bin in this folder.<n,t,t>You can use <yellow>=src<!> for source folder",
-		// post: "Visit the website for more info"
+		sage:"<t,magenta>input:<!> .cue files only. Supports multiple files.<n,t,magenta>output:<!> A new folder will be created for each cue/bin in this folder.<n,t,t>You can use <yellow>=src<!> for source folder",
+		post: "<magenta>Notes:<!,darkgray>\tUsing the <darkyellow>RAW<darkgray> encoder will just copy the audio tracks as they are,<n>\tthis is useful for cutting .bin files to individual track files.",
 	},
 	require: { 
 		input: "yes", output: "e,d"
@@ -469,11 +494,11 @@ APP.init({
 		let qlen = APP.input.length;
 		let qnow = 0;
 
-		APP.input.queueRun( (inp, next) => {
-			if (inp == undefined) {
+		APP.input.queueRun( (inp, next0) => {
+			if (!inp) {
 				process.exit(0); 
 			}
-			let ts = qlen > 1 ? `(${++qnow}/${qlen}) ` : '';
+			let ts = qlen > 1 ? `(${++qnow}/${qlen}) ` : '';	// Puts a (1/10) after Input
 			T.pac(`\n==> Input ${ts} : "${inp}"\n`);
 			let cd = new CD();
 			try{
@@ -481,19 +506,32 @@ APP.init({
 			}catch(e){
 				L.error(e);
 				T.pac(`  > {ERROR} : ${e}\n`);
-				return next();	
+				return next0();
 			}
 
 			let X=TL.bytesToMBStr; // shortcut
 			let auds= cd.getAudioSize();
+
 			T.pac(`  > CD Title:'${cd.CD_TITLE}' | Size:${X(cd.CD_SIZE)}MB (Data:${X(cd.CD_SIZE-auds)}MB Audio:${X(auds)}MB) | Tracks ${cd.tracks.length}\n`);
-			for(let t of cd.tracks) {
-				T.pac(`\t> Track${t.noStr} | Type:${t.type} | Size:${X(t.byteSize)}MB\n`);
-			}
-			next();
+
+			// DEV: queueRun exhausts the array, but I need it intact
+			[...cd.tracks].queueRun( (tr, next) => {
+				if(!tr) return next0();	// Devnote: Automatic new event loop tick
+				T.pac(`\t> Track${tr.noStr} | Type:${tr.type.padEnd(10)} | `);
+				FilePartSHA1(cd.getTrackFilePath(tr.no-1), tr.byteStart, tr.byteSize)
+				.then( (sha1)=>{
+					T.pac(`Size:${X(tr.byteSize).padStart(3)}MB | SHA1: ${sha1}\n`);
+				})
+				.catch(er=>{
+					T.pac(`{ ERROR READING } | file ${file} \n`);
+				})
+				.finally(next);
+			});
 		});
 
 	}// -------------------------;
+	
+
 
 
 	if(APP.action=='e')
@@ -534,9 +572,8 @@ APP.init({
 		// -- Run 'taskEncodeCD' for each input file. Wait until it completes
 		APP.input.queueRun( (inp, next) => {
 
-			if (inp == undefined) {
-				// -> Will exit and autocall the user 'exit' event listener
-				process.exit(0); 
+			if (!inp) {
+				process.exit(0);  // -> Will exit and autocall the user 'exit' event listener
 			}
 			
 			// DEV: - First line of Info Report,
