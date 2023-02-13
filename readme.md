@@ -1,10 +1,12 @@
 ## What is it
 **CBAE** (**C**ue **B**in **A**udio **E**ncoder) is a CLI tool that can encode the audio tracks of a CD image with the **cue/bin** format into OPUS, FLAC, VORBIS or MP3. The new CD Image can then be used in software that supports loading `.cue` files with encoded audio tracks (mostly emulators like DosBox).
 
-**It does a few things more than just convert audio files from one format to another**
-- It can work with single `.bin` files that contain the entire CD
-- It generates a new `.cue` file with correct properties
-- It does it fast as the encoding tasks run in parallel
+**Features**
+- Supports merged `.bin` files, it can extract the audio from those
+- Generates new `.cue` files with correct parameters
+- Fast encoding, tracks are encoded in parallel
+- **NEW** display the SHA-1 hash of tracks
+
 
 ### Example
 ![CBAE running](media/s1.png)
@@ -79,7 +81,7 @@ The main thing, takes .cue files and encodes the audio tracks to a codec of your
 - This is the *default action* meaning, you can skip declaring it. e.g. `cbae e input.cue ...` is the same as `cbae input.cue ...`
 - Example : `cbae ~/iso/TR3.cue -o =src -enc VORBIS:96` --> Will encode `TR3.cue` using Vorbis 96kbps and will put everything in `~/iso/TR3 [e]`
 
-**ACTION** `i` Info. With this you can view some information on a .cue/.bin cd image
+**ACTION** `i` Info. With this you can view some information on a .cue/.bin cd image. Filesizes and SHA-1 checksum.
 
 **OPTION** `-p` sets the maximum number of concurrent encodes that can run. It gets a default value of 3/4 the threads of your system.
 
@@ -87,6 +89,7 @@ The main thing, takes .cue files and encodes the audio tracks to a codec of your
 - e.g. `cbae .... -enc OPUS:80` -> will use OPUS codec at 80KBPS
 - e.g. `cbae .... -enc FLAC` -> will use FLAC. Notice that it doesn't require the `:KBPS` part
 
+**OPTION** `-only {audio/data}` You can choose to work on either the `audio` or `data` tracks of the CD. This is useful when you want to extract the data track of a merged CD *`-only data`*
 
 **Here is a list of codecs supported, along with the valid range of kbps.**
 
@@ -97,14 +100,15 @@ The main thing, takes .cue files and encodes the audio tracks to a codec of your
 | OPUS             | 28       | 500      |
 | VORBIS           | 64       | 500      |
 | FLAC             | -        | -        |
+| RAW              | -        | -        |
 
 <sup>*: MP3 is constant bitrate, while MP3V is variable bitrate.</sup> 
 
 > **Notes**: 
-> - If a CD Image does not include any audio tracks then it will be skipped.
-> - On multiple file input, if a file fails, cbae will continue to the next file in queue.
+> - The `RAW` encoder can be used to split a merged .bin file to individual raw tracks.
 > - Press `CTRL+C` to exit the program at any time.
-> - TIP: Do not use MP3 if other codecs are supported in your software. They are there to satisfy some edge cases, like that old KEGA Fusion emulator that only supports MP3 CD images.
+> - On multiple file input, if a file fails, cbae will continue to the next file in queue.
+> - If a CD Image does not include any audio tracks then it will NOT be processed at all.
 
 **Realtime speed of converting two CDs with a bunch of audio tracks to FLAC**
 
@@ -138,6 +142,17 @@ FILE "QUAKE 1 (1996) - Track 11.opus" OPUS
 - **DosBox-X** supports {Flac, Opus, Vorbis, Mp3, Wav} -- https://dosbox-x.com/wiki/DOSBox%E2%80%90X%E2%80%99s-Feature-Highlights
 - **Mednafen** supports : {Vorbis, Flac, Wav} -- https://mednafen.github.io/documentation/
 - I'm sure there are more, *(help me expand this list?)*
+
+
+## CHANGELOG
+
+### v1.0
+- The `information` action `(i)` will also display the SHA-1 checksum of all the tracks
+- Can selectively work with audio/data tracks, using the `-only` option
+- `RAW` encoder, meaning the audio tracks will not be encoded, they will be copied
+
+### v0.9
+- First version
 
 ---
 

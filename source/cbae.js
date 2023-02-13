@@ -5,7 +5,8 @@
  * -- (jLib) is a personal library
  * ---------------
  * Author: John32B
- * Date: (2022_07) v0.9 First Version
+ * Date: (2023_02) v1.0 Hashes, extract Raw, only data/audio
+ * Date: (2022_07) v0.9 First Published Version
  ***************************************/
  
 const FS = require('fs');
@@ -424,7 +425,7 @@ function taskEncodeCD(file) { return new Promise( (res, rej) =>
 
 
 APP.init({
-	name:"CBAE", ver:"0.9", desc:"Cue/Bin Audio Encoder",
+	name:"CBAE", ver:"1.0", desc:"Cue/Bin Audio Encoder",
 	actions:{
 		e : "!Encode cue/bin to output folder. Will create the new<|>track files and the new .cue file under a subfolder", // ! means default, it will set this action if you dont set any
 		i : "Display cue/bin information along with SHA1 checksum of tracks ",
