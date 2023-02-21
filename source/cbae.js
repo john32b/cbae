@@ -271,7 +271,7 @@ function taskEncodeCD(file) { return new Promise( (res, rej) =>
 	let outDir = createOuputDir(cd, out0); // *THROWS {String}
 
 	// Naming convention of the tracks. TRACK NO will be appended right after + Extension
-	let trackName = cd.CD_TITLE + ' - Track ';
+	let trackName = APP.option.sh?"track":cd.CD_TITLE + ' - Track ';
 
 	let z="  - ";	// Formating Text
 	// T.pac(`${z}Output : "${(out0?outDir:"same as .cue")}"\n`);
@@ -343,15 +343,6 @@ function taskEncodeCD(file) { return new Promise( (res, rej) =>
 		// -- All tracks encoded.
 		TT.Prog.stop();
 
-		if(ONLY)
-		{
-			// DO not generate CUE file
-			T.pac(`[OK]\n`);
-			T.pac(z + '{Partial!} Skipping .cue file\n');
-			ELOG.success++;
-			return;
-		}
-
 		// This string "600MB -> 200MB" is used both in the .cue file and printed on console
 		byteStr = `${TL.bytesToMBStr(cd.CD_SIZE)}MB -> ${TL.bytesToMBStr(encSize)}MB`;
 
@@ -374,7 +365,7 @@ function taskEncodeCD(file) { return new Promise( (res, rej) =>
 			c = c.concat(cd.generateCueForEncoded(trackName, ENC.ext));
 
 		// DEV: CD_TITLE is sanitized from CDInfo, it can be a filename OK
-		let cuef = cd.CD_TITLE + ".cue";
+		let cuef = cd.CD_TITLE + (ONLY?" (partial)":"") + ".cue";
 		try{
 			L.log("> All tracks Complete. Writing CUE file");
 			FS.writeFileSync(PATH.join(outDir, cuef), c.join('\n'));
@@ -429,7 +420,7 @@ APP.init({
 	actions:{
 		e : "!Encode cue/bin to output folder. Will create the new<|>track files and the new .cue file under a subfolder", // ! means default, it will set this action if you dont set any
 		i : "Display cue/bin information along with SHA1 checksum of tracks ",
-		// d : "Decode back to Raw Audio (only works for FLAC)",
+		r : "Restore encoded audio cd back to raw audio tracks",
 	},
 	options:{
 		enc : [	"Audio Codec String <yellow>ID:KBPS<!> <|>"+
@@ -438,14 +429,15 @@ APP.init({
 				"<yellow>VORBIS<!>:(64-500) | <yellow>OPUS<!>:(28-500) | <yellow>FLAC<!> | <yellow>RAW<!> <|>" +
 				"<darkgray,it> e.g. -enc OPUS:64 , -enc FLAC, -enc VORBIS:320<!>", 1],
 		p  : ["Set max parallel operations.", 1, DEF_THREADS],		// description,required,default value (just for help)
-		only : ["Process only <yellow>{data, audio}<!> from the tracks<|>For advanced use, does not generate a .cue file <darkgray>| e.g. -only audio<!>",1],
+		only : ["Process only <yellow>{data, audio}<!> from the tracks<|>For advanced use <darkgray>| e.g. -only audio<!>",1],
+		sh : ["Short filenames for new Tracks | <darkgray>e.g. 'track01.bin track02.ogg ..'<!>"]
 	},
 	help:{
 		ehelp:true,
 		info: 	"<darkgray>  Author : John32B | https://github.com/john32b/cbae <!,n>" + 
 				"  Encodes the Audio Tracks of a cue/bin CD image and builds a new .cue file",
 				
-		sage:"<t,magenta>input:<!> .cue files only. Supports multiple files.<n,t,magenta>output:<!> A new folder will be created for each cue/bin in this folder.<n,t,t>You can use <yellow>=src<!> for source folder",
+		usage:"<t,magenta>input:<!> .cue files only. Supports multiple files.<n,t,magenta>output:<!> A new folder will be created for each cue/bin in this folder.<n,t,t>You can use <yellow>=src<!> for source folder",
 		post: "<magenta>Notes:<!,darkgray>\tUsing the <darkyellow>RAW<darkgray> encoder will just copy the audio tracks as they are,<n>\tthis is useful for cutting .bin files to individual track files.",
 	},
 	require: { 
@@ -532,7 +524,15 @@ APP.init({
 
 	}// -------------------------;
 	
-
+	// EXPERIMENTAL
+	if(APP.action=='r')
+	{
+		L.log('> Action: Restore ::');
+		ELOG.inputs = [...APP.input];
+		let qlen = APP.input.length;
+		let qnow = 0;
+		T.pac(">> {TODO}");
+	}
 
 
 	if(APP.action=='e')
