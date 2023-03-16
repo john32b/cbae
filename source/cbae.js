@@ -23,7 +23,6 @@ const TFS = require('jlib/FsTools');
 const Proc2 = require('jlib/Proc2');
 
 const CD = require('./app/cdinfos');
-const { trace } = require('console');
 
 // DEV: Comment the {L.set} lines for --Release--
 //		If user wants to log he can use "-log LEVEL=FILE"
@@ -413,14 +412,12 @@ function taskEncodeCD(file) { return new Promise( (res, rej) =>
 
 
 
-
-
 APP.init({
 	name:"CBAE", ver:"1.0", desc:"Cue/Bin Audio Encoder",
 	actions:{
 		e : "!Encode cue/bin to output folder. Will create the new<|>track files and the new .cue file under a subfolder", // ! means default, it will set this action if you dont set any
 		i : "Display cue/bin information along with SHA1 checksum of tracks ",
-		r : "Restore encoded audio cd back to raw audio tracks",
+		// r : "Restore encoded audio cd back to raw audio tracks",
 	},
 	options:{
 		enc : [	"Audio Codec String <yellow>ID:KBPS<!> <|>"+
@@ -441,7 +438,7 @@ APP.init({
 		post: "<magenta>Notes:<!,darkgray>\tUsing the <darkyellow>RAW<darkgray> encoder will just copy the audio tracks as they are,<n>\tthis is useful for cutting .bin files to individual track files.",
 	},
 	require: { 
-		input: "yes", output: "e,d"
+		input: "yes", output: "e"
 	}
 });
 
@@ -524,35 +521,24 @@ APP.init({
 
 	}// -------------------------;
 	
-	// EXPERIMENTAL
-	if(APP.action=='r')
-	{
-		L.log('> Action: Restore ::');
-		ELOG.inputs = [...APP.input];
-		let qlen = APP.input.length;
-		let qnow = 0;
-		T.pac(">> {TODO}");
-	}
-
 
 	if(APP.action=='e')
 	{
 		L.log('> Action: Encode ::');
-		ELOG.inputs = [...APP.input];
-
 		// Original queue length
 		let qlen = APP.input.length;
+		// Current queue index
 		let qnow = 0;
-		
+		// Print a deco line
 		let printLine = () => T.ptag('  <darkgray>' + '-'.repeat(40) + "<!,n>");
+
+		ELOG.inputs = [...APP.input];
 
 		// Important checks, Errors will quit the program
 		try {
-			
 			if(!Proc2.checkRun('ffmpeg -version')) throw 'Cannot run ffmpeg. Is it set on path?'; 
 			if(!APP.option.enc) throw "You need to set an encoder with '-enc'";
 			ENC = FFMPEG.getEnc(APP.option.enc);
-			// if(!ENC) throw "Encoding String Error. Run with '-enc help' for encoding info"
 			if(!ENC) throw "Encoding String Error."
 		}catch(er){
 			APP.exitError(T.autoColor(er));
@@ -569,7 +555,6 @@ APP.init({
 			printEStats(c==1223);
 		});
 
-		// DEV: let Q = [...APP.input];	-- Clones the array, I don't need to in this case.
 		// -- Run 'taskEncodeCD' for each input file. Wait until it completes
 		APP.input.queueRun( (inp, next) => {
 
@@ -579,31 +564,32 @@ APP.init({
 			
 			// DEV: - First line of Info Report,
 			//		- The taskEncodeCD will print more infos lines 
-			let ts = qlen > 1 ? `(${qnow+1}/${qlen}) ` : ''; // (1/12) total progress only if multiple files
+			// Prints: "(1/12)" when multiple files
+			let ts = qlen > 1 ? `(${qnow+1}/${qlen}) ` : '';
 			T.pac(`==> Input ${ts} : "${inp}"\n`);
 
-			// > Start processing the input file
+			// > Start processing
 			taskEncodeCD(inp)
-			.catch(er=>{ // er is {String}
-					// Warn/Log and continue
-					// DEV: The cursor is always at a newline here
-					let m;
-					if(er.charAt(0)=="+"){
-						er = er.slice(1);
-						ELOG.skip.set(qnow, er);
-						m="{warning}";
-					}else{
-						ELOG.error.set(qnow, er);
-						m="{ERROR}";
-					}
-					L.error(er);
-					T.pac(`\t${m} : ${er}`).ptag(' | <cyan,it>skipping<!,n>');
-				})
-				.then( ()=>{
-					qnow++;
-					printLine();
-					next();
-				});
+			.catch(er=>{
+				// Dev: Cursor is at a newline, er:String
+				// Warn/Log the error and continue
+				let m;
+				if(er.charAt(0)=="+"){
+					er = er.slice(1);
+					ELOG.skip.set(qnow, er);
+					m="{warning}";
+				}else{
+					ELOG.error.set(qnow, er);
+					m="{ERROR}";
+				}
+				L.error(er);
+				T.pac(`\t${m} : ${er}`).ptag(' | <cyan,it>skipping<!,n>');
+			})
+			.then( ()=>{
+				qnow++;
+				printLine();
+				next();
+			});
 		});
 
 	}// -- end if action==e --
