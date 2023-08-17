@@ -141,6 +141,7 @@ FILE "QUAKE 1 (1996) - Track 11.opus" OPUS
 - **DosBox-staging** supports {Flac, Opus, Vorbis, Mp3, Wav} -- https://github.com/dosbox-staging/dosbox-staging#feature-differences
 - **DosBox-X** supports {Flac, Opus, Vorbis, Mp3, Wav} -- https://dosbox-x.com/wiki/DOSBox%E2%80%90X%E2%80%99s-Feature-Highlights
 - **Mednafen** supports : {Vorbis, Flac, Wav} -- https://mednafen.github.io/documentation/
+- **[PCSX-Redux](https://pcsx-redux.consoledev.net/)** supports anything its linked ffmpeg dependency supports.
 - I'm sure there are more, *(help me expand this list?)*
 
 
