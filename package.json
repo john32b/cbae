@@ -1,9 +1,10 @@
 {
   "name": "cbae",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "homepage": "https://github.com/john32b/cbae",
   "description": "Cue Bin CD Audio Encoder",
   "author": "John32B",
+  "type": "module",
   "license": "ISC",
   "keywords": [
     "cd",
@@ -16,13 +17,13 @@
     "convert"
   ],
   "devDependencies": {
-    "@types/node": "^17.0.36",
-    "jlib": ">=1.0.0"
+    "@types/node": "^18.0.0",
+    "@vercel/ncc": "^0.34.0"
   },
   "scripts": {
-    "test": "echo \"Test\" && exit 1"
+    "build": "ncc build source/cbae.js -m -d --target es2020 -o bin/"
   },
-  "bin": "bin/cbae.js",
+  "bin": "bin/index.js",
   "repository": {
     "type": "git",
     "url": "https://github.com/john32b/cbae"

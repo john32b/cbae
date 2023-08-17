@@ -1,23 +1,26 @@
+/**
+ * cdinfos
+ * --------
+ * Simple parser for .cue files | Made for the 'cbae' tool
+ * 
+ * NOTE:
+ *  This parser WILL NOT implement the entire specification
+ *  just the parts that are usually used in Game CDs
+ * 
+ * Resources:
+ *  + https://github.com/libyal/libodraw/blob/main/documentation/CUE%20sheet%20format.asciidoc
+ *  + http://wiki.hydrogenaud.io/index.php?title=Cue_sheet
+ */
 
-// HELP
-// -- https://github.com/libyal/libodraw/blob/main/documentation/CUE%20sheet%20format.asciidoc
-// -- http://wiki.hydrogenaud.io/index.php?title=Cue_sheet
-
-
-// -- This parser WILL NOT implement most of the specification
-//    just the parts that are usually used in Game CDs
-
-
-
-const PATH = require('path');
-const FS = require('fs');
-const L = require('jlib/Log');
-const FST = require('jlib/FsTools');
-
+import * as PATH from 'node:path';
+import * as FS from 'node:fs';
+import L from 'jlib/util/Log';
+import * as FST from 'jlib/util/FsTools';
 
 
 // When parsing cue files, if track type is not here, it will throw error
 const SUPPORTED_TRACK_FILES = ["BINARY", "WAVE"];
+
 
 // Number of Sectors a Track Type
 const sectorsByType = {
@@ -36,14 +39,15 @@ const sectorsByType = {
 }
 
 
-
 /**
  * Describe a .cue file
  * plus some extra functionality
  */
-class cdinfos {
+export class cdinfos {
+
 	CD_TITLE; 				// CueField: Either TITLE property from cue, or the basename of the CUE file loaded
-	// 	DEV: This is always filename sanitized. So you can use it as a filename
+							// ^ DEV: This is always filename sanitized. So you can use it as a filename
+								
 	CD_SIZE = 0;			// Accumulation of ALL Track Files Byte Size
 	FILE_LOADED = null;		// FULL path of the cue file loaded e.g. 'c:\\games\\iso\\quake.iso'
 	FILE_DIR = null;		// Store the directory path of the Cue file loaded
@@ -143,10 +147,8 @@ class cdinfos {
 
 		if (PATH.extname(input).toLowerCase() != ".cue") throw `Not a ".cue" file`;
 
-		let contents = FST.fileGet(input);
-		if (contents == null) throw `Cannot load file "${input}"`;
-		let lines = contents.split('\n');	// DEVNOTE:	\n works for all files (\r\n) 
-		// plus I am going to trim the lines later
+		let lines = FST.getFileLines(input);
+		if(!lines) throw `Cannot load file "${input}"`;
 
 		// -- Start Parsing the loaded CUE file
 		// fills up tracks[] with data as it is read from the cue file
@@ -451,8 +453,3 @@ class cuetime {
 	}
 
 } // -------------------------------------------------------;
-
-
-
-
-module.exports = cdinfos;

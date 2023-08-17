@@ -1,6 +1,6 @@
 ISC License
 
-Copyright (c) 2022, John32B
+Copyright (c) John32B
 
 Permission to use, copy, modify, and/or distribute this software 
 for any purpose with or without fee is hereby granted, provided 

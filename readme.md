@@ -6,6 +6,7 @@
 - Generates new `.cue` files with correct parameters
 - Fast encoding, tracks are encoded in parallel
 - **NEW** display the SHA-1 hash of tracks
+	
 
 
 ### Example
@@ -91,6 +92,11 @@ The main thing, takes .cue files and encodes the audio tracks to a codec of your
 
 **OPTION** `-only {audio/data}` You can choose to work on either the `audio` or `data` tracks of the CD. This is useful when you want to extract the data track of a merged CD *`-only data`*
 
+**OPTION** `-sh` Makes the generated track filenames in the form of `trackXX.ext`. This is useful in some cases, like the winmm CD Audio Emulator _(DxWnd)_, which needs the tracks to be named like that.  
+_e.g. (track01.bin, track02.ogg, track03.ogg ..... )_
+
+---
+
 **Here is a list of codecs supported, along with the valid range of kbps.**
 
 | Codec ID         | Min Kbps | Max Kbps |
@@ -142,10 +148,16 @@ FILE "QUAKE 1 (1996) - Track 11.opus" OPUS
 - **DosBox-X** supports {Flac, Opus, Vorbis, Mp3, Wav} -- https://dosbox-x.com/wiki/DOSBox%E2%80%90X%E2%80%99s-Feature-Highlights
 - **Mednafen** supports : {Vorbis, Flac, Wav} -- https://mednafen.github.io/documentation/
 - **[PCSX-Redux](https://pcsx-redux.consoledev.net/)** supports anything its linked ffmpeg dependency supports.
+- **[DxWnd](https://sourceforge.net/projects/dxwnd)** uses an audio emulator for CDDA games, supports {Ogg}
 - I'm sure there are more, *(help me expand this list?)*
 
 
 ## CHANGELOG
+
+### V1.1
+- Added option `-sh`, gives short names to created tracks `(track01.bin, track02.opus, ... etc)`. 
+- Creating partial encodes with the `-only` option, will now generate a `.cue` file.
+- Internal code refactor, JS code now uses ECMAscript modules.
 
 ### v1.0
 - The `information` action `(i)` will also display the SHA-1 checksum of all the tracks

@@ -3,32 +3,40 @@
  * CBAE - Cue Bin Audio Encoder
  * -- This is the development version, the final script is minified
  * -- (jLib) is a personal library
- * ---------------
+ * ---------------------------------
  * Author: John32B
+ * Project homepage: https://github.com/john32b/cbae
+ * Log:
+ * Date: (2023_08) V1.1 ECMAscript Modules | -sh option to produce short names | 
  * Date: (2023_02) v1.0 Hashes, extract Raw, only data/audio
  * Date: (2022_07) v0.9 First Published Version
- ***************************************/
+ * ----------------------------------
+ * Dev Notes:
+ * - I am using 'tsconfig.json' to enable Typerscript parsing
+ *   in VSCode just to get intellisense. I am not using
+ *   Typescript to compile anything. 
+ * - JLIB is a TypeScript codebase, but the .js files
+ *   should already be compiled externally.
+***************************************************************/
  
-const FS = require('fs');
-const PATH = require('path');
-const { cpus } = require('os');
+import * as FS from 'node:fs';
+import PATH from 'node:path';
+import { cpus } from 'node:os';
+// --
+import D from "jlib";
+const {L, T, APP, tools:TL} = D;  // shorthands
+import * as TT from 'jlib/util/TerminalTools';
+import * as TFS from 'jlib/util/FsTools';
+import {Proc2} from 'jlib/util/Proc2';
+// --
+import {cdinfos} from './cdinfos.js';
 
-const APP = require('jlib/Baseapp');
-const T = require('jlib/Terminal');
-const TT = require('jlib/TerTools');
-const L = require('jlib/Log');
 
-const TL = require('jlib/Tools');
-const TFS = require('jlib/FsTools');
-const Proc2 = require('jlib/Proc2');
-
-const CD = require('./app/cdinfos');
-
-// DEV: Comment the {L.set} lines for --Release--
-//		If user wants to log he can use "-log LEVEL=FILE"
+// Logging 
 // L.set({ level: 4, file: "a:\\log_cbae.txt", pos: true, stderr: false });
 // L.set({ date: "", level: 4, file: "/tmp/log_cbae.txt", pos: true, stderr: true });
 
+// Use 3/4 of total threads for operations
 const DEF_THREADS = Math.ceil(cpus().length * 0.75);
 
 // -------------------------------------------------------;
@@ -137,35 +145,37 @@ const FFMPEG = {
 
 
 
-/** Promise, get SHA1 of file/part of file */
-function FilePartSHA1(source, readStart = 0, readLen = 0)
+/** Promise, get SHA1 of file/part of file . @throws */
+async function FilePartSHA1(source, readStart = 0, readLen = 0)
 {
-	return new Promise((res, rej) => {
 	let stat; 
 	try{ stat = FS.statSync(source); } catch(er) {
 		throw `Cannot read file '${source}'`;
 	}
+
+	// Only bother importing these if it has to
+	var crypto = await import('node:crypto');
+	var pipeline = await import('node:stream/promises');
+	var hash = crypto.createHash('sha1');
+
 	let srcSize = stat.size;
 	if (readLen == 0) readLen = srcSize - readStart;	// to the rest of the track
 	// DEV: it needs the -1 for readEnd because it is inclusive | i.e. (readStart to readStart) would read 1 byte
 	// Actual ending position to read
 	let readEnd = readStart + readLen - 1;
 	L.debug("Reading SHA1 for ", source, readStart, readEnd);
-	let strIn = FS.createReadStream(source, { start: readStart, end: readEnd, flags: 'r' });
-		strIn.once('error', er => rej(`Could not read file '${source}'`));
-	var crypto = require("crypto")
-	var hash = crypto.createHash('sha1');
-	strIn.on('readable', () => {
-		let data = strIn.read();
-		if (data) hash.update(data);
-			else res(hash.digest('hex'));
-	});
-	});// -- end promise --
+
+	// - NEW: Promise way of handling pipes
+	let fd = await FS.promises.open(source, 'r');
+	let strIn = fd.createReadStream({start:readStart, end:readEnd});
+	await pipeline.pipeline(strIn, hash);
+	return hash.digest('hex');
+
 }// -- end fn --
 
 
 
-/**
+/** SYNC
  * Return a unique path to put the generated CD track files
  * - Tests if it can be created
  * - If exists, will increment a counter at the end of the path (2) until unique
@@ -254,7 +264,7 @@ function taskEncodeCD(file) { return new Promise( (res, rej) =>
 
 	let time0 = Date.now(); // Unix Time
 	
-	let cd = new CD();
+	let cd = new cdinfos();
 		cd.loadCue(file); // *THROWS {String}
 	
 	// This is the only SKIP case (error starting with +) There is no point in converting this CD
@@ -333,6 +343,7 @@ function taskEncodeCD(file) { return new Promise( (res, rej) =>
 	}// -------------------------;
 
 	// --
+	// DEV: PromiseRun will exec promises in parallel with a hard limit
 	TL.PromiseRun(gen(), APP.option.p ?? DEF_THREADS, (compl) => {
 		
 		TT.Prog.setTask(compl, cd.tracks.length);
@@ -343,7 +354,7 @@ function taskEncodeCD(file) { return new Promise( (res, rej) =>
 		TT.Prog.stop();
 
 		// This string "600MB -> 200MB" is used both in the .cue file and printed on console
-		byteStr = `${TL.bytesToMBStr(cd.CD_SIZE)}MB -> ${TL.bytesToMBStr(encSize)}MB`;
+		let byteStr = `${TL.bytesToMBStr(cd.CD_SIZE)}MB -> ${TL.bytesToMBStr(encSize)}MB`;
 
 		// DEV : Writing, from the [OK] positionm
 			// - Converting Tracks [OK]
@@ -357,7 +368,7 @@ function taskEncodeCD(file) { return new Promise( (res, rej) =>
 		let c = ['REM ' + '-'.repeat(50)];
 			c.push('REM | ' + cd.CD_TITLE);
 			c.push(c[0]); // Add the `---` line again
-			c.push(`REM | Converted with CBAE v${APP.IP.ver} - Cue/Bin Audio Encoder`);
+			c.push(`REM | Converted with CBAE v${APP.infos().ver} - Cue/Bin Audio Encoder`);
 			c.push(`REM | CD Size : ${byteStr}`);
 			c.push('REM | Audio Quality : ' + ENC.desc);
 			c.push(c[0], ''); 
@@ -378,6 +389,7 @@ function taskEncodeCD(file) { return new Promise( (res, rej) =>
 
 	}).catch(er=>{  
 
+		console.error(er);
 		// Here are errors from ::
 		// 		- TFS.copyPart > Readable String Errors
 		// 		- Proc2 > logExit Object with stdErr/stdOut
@@ -409,15 +421,12 @@ function taskEncodeCD(file) { return new Promise( (res, rej) =>
 
 
 
-
-
-
 APP.init({
-	name:"CBAE", ver:"1.0", desc:"Cue/Bin Audio Encoder",
+	name:"CBAE", ver:"1.1", desc:"Cue/Bin Audio Encoder",
 	actions:{
 		e : "!Encode cue/bin to output folder. Will create the new<|>track files and the new .cue file under a subfolder", // ! means default, it will set this action if you dont set any
 		i : "Display cue/bin information along with SHA1 checksum of tracks ",
-		// r : "Restore encoded audio cd back to raw audio tracks",
+		// r : "Restore encoded audio cd back to raw audio tracks", -- future? --
 	},
 	options:{
 		enc : [	"Audio Codec String <yellow>ID:KBPS<!> <|>"+
@@ -426,20 +435,27 @@ APP.init({
 				"<yellow>VORBIS<!>:(64-500) | <yellow>OPUS<!>:(28-500) | <yellow>FLAC<!> | <yellow>RAW<!> <|>" +
 				"<darkgray,it> e.g. -enc OPUS:64 , -enc FLAC, -enc VORBIS:320<!>", 1],
 		p  : ["Set max parallel operations.", 1, DEF_THREADS],		// description,required,default value (just for help)
-		only : ["Process only <yellow>{data, audio}<!> from the tracks<|>For advanced use <darkgray>| e.g. -only audio<!>",1],
-		sh : ["Short filenames for new Tracks | <darkgray>e.g. 'track01.bin track02.ogg ..'<!>"]
+		sh : ["Short filenames for new Tracks | <darkgray>e.g. 'track01.bin track02.ogg ..'<!>"],
+		only : ["Process only <yellow>{data, audio}<!> from the tracks<|>For advanced use <darkgray>| e.g. -only audio<!>",1]
 	},
-	help:{
-		ehelp:true,
-		info: 	"<darkgray>  Author : John32B | https://github.com/john32b/cbae <!,n>" + 
-				"  Encodes the Audio Tracks of a cue/bin CD image and builds a new .cue file",
-				
-		usage:"<t,magenta>input:<!> .cue files only. Supports multiple files.<n,t,magenta>output:<!> A new folder will be created for each cue/bin in this folder.<n,t,t>You can use <yellow>=src<!> for source folder",
-		post: "<magenta>Notes:<!,darkgray>\tUsing the <darkyellow>RAW<darkgray> encoder will just copy the audio tracks as they are,<n>\tthis is useful for cutting .bin files to individual track files.",
-	},
-	require: { 
-		input: "yes", output: "e"
-	}
+
+help:{ 
+io:"Io",
+// Dev: Literal Strings, Keep them at the start of the line.
+info:
+`<darkgray>  Author : John32B | https://github.com/john32b/cbae <!,n>\
+  Encodes the Audio Tracks of a cue/bin CD image and builds a new .cue file`,
+		
+usage:
+`<t,magenta>input:<!> .cue files only. Supports multiple files.<n,t,magenta>output:<!> \
+A new folder will be created for each cue/bin in this folder.<n,t,t>\
+You can use <yellow>=src<!> for source folder`,
+
+post: 
+`<magenta>Notes:<!,darkgray>\
+\tUsing the <darkyellow>RAW<darkgray> encoder will just copy the audio tracks as they are,<n>\
+\tthis is useful for cutting .bin files to individual track files.`}
+
 });
 
 
@@ -473,13 +489,13 @@ APP.init({
 
 	if(APP.input.length==0)
 	{
-		// This is when input has a wildcard (*), but it returned no results
-		T.pac(" > No input files \n");
+		T.ptag("use <yellow>--help<!> for help<n>");
 		process.exit(0);
 	}
 
 	if(APP.action=='i')
 	{
+		APP.assertIO('im');
 		L.log('> Action: Information ::');
 		let qlen = APP.input.length;
 		let qnow = 0;
@@ -490,7 +506,7 @@ APP.init({
 			}
 			let ts = qlen > 1 ? `(${++qnow}/${qlen}) ` : '';	// Puts a (1/10) after Input
 			T.pac(`\n==> Input ${ts} : "${inp}"\n`);
-			let cd = new CD();
+			let cd = new cdinfos();
 			try{
 				cd.loadCue(inp);
 			}catch(e){
@@ -504,7 +520,8 @@ APP.init({
 
 			T.pac(`  > CD Title:'${cd.CD_TITLE}' | Size:${X(cd.CD_SIZE)}MB (Data:${X(cd.CD_SIZE-auds)}MB Audio:${X(auds)}MB) | Tracks ${cd.tracks.length}\n`);
 
-			// DEV: queueRun exhausts the array, but I need it intact
+			// DEV: queueRun exhausts the array, but I need it intact, that's why I am cloning it
+			// 		queueRun is defined in `jlib/util/tools`
 			[...cd.tracks].queueRun( (tr, next) => {
 				if(!tr) return next0();	// Devnote: Automatic new event loop tick
 				T.pac(`\t> Track${tr.noStr} | Type:${tr.type.padEnd(10)} | `);
@@ -519,11 +536,13 @@ APP.init({
 			});
 		});
 
-	}// -------------------------;
+	}// -- end action (i)
 	
 
 	if(APP.action=='e')
 	{
+		APP.assertIO('imo');
+		
 		L.log('> Action: Encode ::');
 		// Original queue length
 		let qlen = APP.input.length;
@@ -541,7 +560,7 @@ APP.init({
 			ENC = FFMPEG.getEnc(APP.option.enc);
 			if(!ENC) throw "Encoding String Error."
 		}catch(er){
-			APP.exitError(T.autoColor(er));
+			APP.panic(T.autoColor(er));
 		}
 
 		// - This is called on before any program exit, Normal user Cancel
@@ -592,4 +611,4 @@ APP.init({
 			});
 		});
 
-	}// -- end if action==e --
+	}// -- end action (e)

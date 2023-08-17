@@ -1,0 +1,7 @@
+{
+	"search.useIgnoreFiles": false,
+	"search.exclude": { 
+		"**/node_modules": false ,
+		"**/node_modules/@types" : true,
+	}
+}
