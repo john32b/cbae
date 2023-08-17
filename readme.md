@@ -1,14 +1,14 @@
 ## What is it
 **CBAE** (**C**ue **B**in **A**udio **E**ncoder) is a CLI tool that can encode the audio tracks of a CD image with the **cue/bin** format into OPUS, FLAC, VORBIS or MP3. The new CD Image can then be used in software that supports loading `.cue` files with encoded audio tracks (mostly emulators like DosBox).
 
+⭐ **Updated 2023-08** -- Check the [CHANGELOG](#changelog-dna)
+
 **Features**
 - Supports merged `.bin` files, it can extract the audio from those
 - Generates new `.cue` files with correct parameters
 - Fast encoding, tracks are encoded in parallel
 - **NEW** display the SHA-1 hash of tracks
 	
-
-
 ### Example
 ![CBAE running](media/s1.png)
 
@@ -22,35 +22,36 @@ Take the original release of **"Quake (1996)"**, a single CD Image, including te
 
 The OPUS codec produces very nice audio quality even at low bitrates. The encoded Quake CD got a reduction down to **9%** of the original raw CD size.
 
-## Getting and Running
+## Installing :truck:
 CBAE is a nodejs script. It is a single file and has no external dependencies other than FFmpeg. You can download the script from here or from npm.
 
-- From NPM.
+- From [NPM](https://www.npmjs.com/package/cbae)
 ```bash
 # Download and install globally
 npm i cbae --location=global
 # Run
 cbae
 ```
-- Or download the script manually from github
+- From github _(if you don't want to use npm)_
 ```bash
 # Clone the git to a dir of your choice
 git clone https://github.com/john32b/cbae --depth 1
 # Run
-cd cbae/bin
-node cbae
+node cbae/bin
 ```
-- Or for Windows, download the Executable that does not require NodeJS
-	- You can find this in the [Releases Tab in Github](https://github.com/john32b/cbae/releases)
+- **OR** For Windows, download the Executable that does not require NodeJS
+	- ❗ It is outdated. sorry.
+	- You can find this in the [Releases Tab in Github](https://github.com/john32b/cbae/releases)  
 
 **In Short, you need:**
-- [NodeJS](https://nodejs.org), version 16+ (*or not if you are on Windows and get the standalone version*)
+- [NodeJS](https://nodejs.org), version 18+
 - [FFmpeg](http://ffmpeg.org/), set on your PATH *(So it can run from anywhere by calling ffmpeg)* 
 - Some basic command line knowledge is a plus
 
-**TIP**: For Windows the easiest way to get FFmpeg on path, is to copy `ffmpeg.exe` in your Windows dir (usually `C:\Windows`)
+> :pencil2: **TIP**: For Windows the easiest way to get FFmpeg on path, is to copy `ffmpeg.exe` in your Windows dir (usually `C:\Windows`)
 
-### Running
+## Running :computer:
+
 **Quick Examples**
 ```bash
 # Encode all .cue cd images from H:\DOS\cdimages into b:\encoded\
@@ -152,7 +153,7 @@ FILE "QUAKE 1 (1996) - Track 11.opus" OPUS
 - I'm sure there are more, *(help me expand this list?)*
 
 
-## CHANGELOG
+## CHANGELOG :dna:
 
 ### V1.1
 - Added option `-sh`, gives short names to created tracks `(track01.bin, track02.opus, ... etc)`. 
@@ -169,7 +170,7 @@ FILE "QUAKE 1 (1996) - Track 11.opus" OPUS
 
 ---
 
-## MORE
+## MORE :information_source:
 
 ### What about CHD ?
 CHD is an entirely different thing and from what I understand CHD can only include lossless audio plus not all programs/emulators support it.
