@@ -15,7 +15,7 @@
 import * as PATH from 'node:path';
 import * as FS from 'node:fs';
 import L from 'jlib/util/Log';
-import * as FST from 'jlib/util/FsTools';
+import {sanitizePath, getFileLines} from 'jlib/util/FsTools';
 
 
 // When parsing cue files, if track type is not here, it will throw error
@@ -45,12 +45,14 @@ const sectorsByType = {
  */
 export class cdinfos {
 
-	CD_TITLE; 				// CueField: Either TITLE property from cue, or the basename of the CUE file loaded
-							// ^ DEV: This is always filename sanitized. So you can use it as a filename
-								
-	CD_SIZE = 0;			// Accumulation of ALL Track Files Byte Size
-	FILE_LOADED = null;		// FULL path of the cue file loaded e.g. 'c:\\games\\iso\\quake.iso'
-	FILE_DIR = null;		// Store the directory path of the Cue file loaded
+	CD_ARTIST="";			// Top Level "PERFORMER" defined in the .cue fule
+	CD_TITLE=""; 			// Top Level "TITLE" as defined in the .cue file
+	CD_SIZE = 0;			// Bytes of all tracks that make up the CD
+
+	CD_FILE="";				// Sanitized CD_TITLE, can be used for creating files/folders
+
+	FILE_LOADED = null;		// FULL PATH of the cue file loaded e.g. 'c:\\games\\iso\\quake.iso'
+	FILE_DIR = null;		// Shortcut for Base Directory of FILE_LOADED
 
 	/** @type {Array.<cdtrack>} */
 	tracks = [];
@@ -61,6 +63,11 @@ export class cdinfos {
 	openfile = null;
 
 
+	/** Prepared/Sanitized filenames for all tracks WITHOUT extension
+	 * set with prepareFilenames()
+	 * @type {string[]} */
+	readyFiles = null;
+
 	/**
 	 * @param {String} file A valid .cue file
 	 * @throws {String} Errors
@@ -68,15 +75,14 @@ export class cdinfos {
 	constructor(input)
 	{
 		if(input) this.loadCue(input);
-	}// -------------------------;
+	}
 
-	/** Get the file associated with a track number,
+	/** Get the file associated with a track index (0 start)
 	 * this could either be a shared file or a unique file
-	 * Numbering starts at 0
 	 */
 	getTrackFilePath(tr) {
 		return PATH.join(this.FILE_DIR, this.tracks[tr].file ?? this.tracks[tr].shared);
-	}// -------------------------;
+	}
 
 	/** Return the bytesize of all the audio tracks
 	 */
@@ -87,28 +93,103 @@ export class cdinfos {
 
 
 	/**
-	 * Generate a new CUE file assuming each track has its own file
+	 * Call before building a .cue file, (for use in CBAE, one track per file)
+	 * Builds the `readyFiles` variable with sanitized filenames for all tracks
+	 * CBAE reads this to create the files, and then this is read to create the CUE file
+	 * == Template Tags		 
+	 *  {no}	;	Track Number, 01,02,03...
+	 *  {cdt}	;	CD Title
+	 *  {cda}	;	CD Artist
+	 *  {tt}	;	Track Title
+	 *  {ta}	;	Track Artist
+	 * @param {String} template Custom Naming Template e.g. | "track{no}"
+	 **/
+	prepareFilenames(template)
+	{
+		this.readyFiles = [];
+		
+		if(!template)
+		{
+			// If all Tracks have TRACK TITLE
+			if(this.tracks.filter(t=>t.title!=null).length == this.tracks.length)
+			{
+				let numartists = this.tracks.filter(t=>t.artist!=null).length;
+				// If one track has an artist, print the artist on all tracks
+				// Tracks that are missing artist will print a (missing)
+				if(numartists > 0) {
+					// "02. Clint Mansell - Leaving Earth"
+					template = "{no}. {ta} - {tt}";
+				}else {
+					// "14. Ending Credits"
+					template = "{no}. {tt}";
+				}
+			}else{
+				// no title - no artist | The DEFAULT for most games
+				// "Quake 1 - Track 01" 
+				template = "{cdt} - Track {no}";
+			}
+		}
+
+		for (let tr of this.tracks)
+		{
+			let fname = template.replace(/{(.+?)}/g, (A, B)=>{
+				switch(B){
+					case "cdt": return this.CD_TITLE;
+					case "cda": return this.CD_ARTIST;
+					case "tt": return tr.title ?? "untitled";
+					case "ta": return tr.artist ?? "unknown artist";
+					case "no": return tr.noStr;
+					default: return B;
+				}
+			});
+
+			this.readyFiles.push(sanitizePath(fname));
+		}
+
+		// Check if filenames are duplicate for some reason
+		if(this.readyFiles.filter((it, ind) => this.readyFiles.indexOf(it) !== ind).length>0) {
+			throw "Template resulted in duplicate entries";
+		}
+
+	}// -------------------------;
+
+
+	/**
+	 * Generate a new CUE file (assuming each track has its own file)
 	 * - Used when converting a cue to encoded audio files
-	 * - Returns the file in an string array, line by line. Save it yourself
-	 * - DEV: WARNING - No safechecking in this function
-	 * @param {String} tName TrackName when saving the file. TrackNo will be appended
-	 * @param {String} aExt AUDIO file extension with the dot. e.g. ".opus" | I already know Tracks are .bin
-	 * @returns {String[]} 
+	 * - Returns data in an string array, line by line. Save it yourself.
+	 * - Expects `this.readyFiles` to be set
+	 * @param {String} aExt AUDIO file extension with the dot. e.g. ".opus"
+	 * @returns {String[]} Generate CUE, line by line
 	 * @throws {String} Errors
 	 */
-	generateCueForEncoded(tName, aExt) {
+	buildCueFileForCBAE(aExt) {
+
+		if(!this.readyFiles) this.prepareFilenames();
+
 		let b = [];
-		for (let tr of this.tracks) {
-			let tno = `${tr.no}`.padStart(2, '0');
-			let tf = tName + tno;	// track file+no |e.g track_03
+		// Those are standard tags, no program should have problems parsing them
+		if(this.CD_ARTIST)
+		b.push(`\tPERFORMER "${this.CD_ARTIST}"`);
+		b.push(`\tTITLE "${this.CD_TITLE}"`);
+		b.push(``);
+		
+		for (let i=0;i<this.tracks.length;i++) 
+		{
+			let tr = this.tracks[i];
+			let fn = this.readyFiles[i];
+
 			if (tr.isData) {
-				b.push(`\tFILE "${tf}.bin" BINARY`);
+				b.push(`\tFILE "${fn}.bin" BINARY`);
 			} else {
 				let tp = aExt.slice(1).toUpperCase();	// .mp3 -> MP3 | .ogg -> OGG
-				b.push(`\tFILE "${tf + aExt}" ${tp}`);
+				b.push(`\tFILE "${fn}${aExt}" ${tp}`);
 			}
 
-			b.push(`\t\tTRACK ${tno} ${tr.type}`);
+			if(tr.title)  b.push(`\t\tTITLE "${tr.title}"`);
+			if(tr.artist) b.push(`\t\tPERFORMER "${tr.artist}"`);
+
+			b.push(`\t\tTRACK ${tr.noStr} ${tr.type}`);
 			if (tr.pregap)
 				b.push(`\t\tPREGAP ${tr.pregap}`);
 
@@ -125,17 +206,8 @@ export class cdinfos {
 	}// -------------------------------------------------------;
 
 
-
 	/**
-	 * Load a .CUE file and fill in the vars with data.
-	 * Will throw when: 
-	 * 	- CUE File does not exist
-	 *  - No tracks in CD
-	 *  - Indexing errors
-	 *  - Track File defined in a track does not exist
-	 *  - Unsupported Track File Type
-	 *  - Duplicate Track, Duplicate Index 
-	 *  - Bad Syntax
+	 * Loads a .CUE file and fills in object fields with data
 	 * @param {String} input A valid .cue file
 	 * @throws {String} Errors
 	 */
@@ -147,7 +219,7 @@ export class cdinfos {
 
 		if (PATH.extname(input).toLowerCase() != ".cue") throw `Not a ".cue" file`;
 
-		let lines = FST.getFileLines(input);
+		let lines = getFileLines(input);
 		if(!lines) throw `Cannot load file "${input}"`;
 
 		// -- Start Parsing the loaded CUE file
@@ -169,12 +241,11 @@ export class cdinfos {
 		if (this.tracks.length == 0) throw 'No Tracks in the cue file'
 		this.opentrack?.validCheck();	// The last track was not checked by the parser, check now it will throw
 
-		// Get CDTITLE from cue filename
+		// Figure out CD_TITLE by cue filename if didn't get it in CUE TITLE
 		if (!this.CD_TITLE) {
-			// DEV: I could use path.parse(path.basename(filename)).name;
-			let exp = /([^\/\\]*)\.cue$/i;		// Gets the last portion of the path, without the extension
-			this.CD_TITLE = exp.exec(input)[1];
+			this.CD_TITLE = PATH.parse(PATH.basename(input)).name;
 		}
+		this.CD_FILE = sanitizePath(this.CD_TITLE); 
 
 		// Go through tracks one more time
 		//  - Find out which tracks will share track files
@@ -220,18 +291,18 @@ export class cdinfos {
 
 		}// --
 
-
 		// #DEBUG Infos ?  :TODO: Perhaps use  `getInfos()` to reduce redundancy
-		L.log('CD_TITLE:', this.CD_TITLE, ' | CD_SIZE:', this.CD_SIZE, '| Tracks:', this.tracks.length);
-		for (let t of this.tracks) L.debug('' + t);	// force to string
+		L.log(`CD INFO | title:"${this.CD_TITLE}" size:(${this.CD_SIZE}) tracks:(${this.tracks.length})` + 
+			  this.CD_ARTIST?` artist:"${this.CD_ARTIST}`:"");
+		for (let t of this.tracks) L.debug(`${t}`);
 		L.debug('-'.repeat(30));
 
 	}// -------------------------;
 
 
 	/** 
-	* - Parses the cue files lines
-	* - Remember all lines are (trimmed)
+	* Parses CUE file lines one by one
+	* Lines are trimmed
 	* @param {String} line
 	*/
 	_cueParser(line) {
@@ -248,24 +319,38 @@ export class cdinfos {
 		// |TITLE "Quake DOS (1996)" >> for CD title
 		// - can also be TRACK titles, if read after an open track
 		if (lineup.startsWith('TITLE')) {
-			let exp = /^\w+\s+\"(.+)\"/;
-			let res = exp.exec(lineup);
+			let res = /^\w+\s+(.+)/.exec(lineup);
 			if (res == null) throw "Line error, Bad Syntax"
+			// Remove first and last " if present
+			res[1] = res[1].replace(/^\"(.*)\"/,"$1");
 
 			if (this.opentrack != null)
 				this.opentrack.title = res[1];
+			else {
+				this.CD_TITLE = res[1];
+			}
+			return;
+		}		
+		
+		// - Used in audio tracks
+		if (lineup.startsWith('PERFORMER')) {
+			let res = /^\w+\s+(.+)/.exec(lineup);
+			if (res == null) throw "Line error, Bad Syntax"
+			// Remove first and last " if present
+			res[1] = res[1].replace(/^\"(.*)\"/, "$1");
+			if (this.opentrack != null)
+				this.opentrack.artist = res[1];
 			else
-				this.CD_TITLE = FST.sanitizePath(res[1]);
-
+				this.CD_ARTIST = res[1];
 			return;
 		}
 
 		// |FILE "Quake.bin" BINARY
 		if (lineup.startsWith('FILE')) {
-			let exp = /.+\"(.+)\"\s+(.+)/;	// Catch : wwwwss(Quake.bin)ss(BINARY)
+			let exp = /^\w+\s+\"(.+)\"\s+(.+)/;	// Catch : ^wwwwss"(Quake.bin)"ss(BINARY)
 			let res = exp.exec(line);	// < lowercase line. I need the filename case sensitive
 			if (res == null) throw "Line error, Bad Syntax"
-			// [Safe Check]
+			
 			if (!SUPPORTED_TRACK_FILES.includes(res[2])) {
 				throw "Unsupported TRACK File Type " + res[2];
 			}
@@ -364,7 +449,9 @@ class cdtrack {
 	file = null;	// {String} The filename the track is associated with
 	type = null;	// {String} ENUM id of the type (e.g. "mode2/2352")
 	no = 0;			// {Int} Track Number 0-99
-	title = null;	// {String} Some CUE files have track titles
+
+	title = null;	// {String} Track title, if defined (TITLE)
+	artist = null;	// {String} Track Artist if defined (PERFORMER)
 
 	/** @type {cuetime} */
 	pregap = null;	// Pregap as defined in the cue file 

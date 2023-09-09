@@ -180,7 +180,7 @@ async function FilePartSHA1(source, readStart = 0, readLen = 0)
  * - Tests if it can be created
  * - If exists, will increment a counter at the end of the path (2) until unique
  * 
- * @param {CD} cd
+ * @param {cdinfos} cd
  * @param {String} out The output path to create the subfolder. If null will set to same as input file 
  * @returns {String} the actual path that was created
  * @throws {String} When can't create
@@ -189,7 +189,7 @@ function createOuputDir(cd, out)
 {
 	let path = out??cd.FILE_DIR;
 	path = PATH.resolve(PATH.normalize(path));
-	path = PATH.join(path,cd.CD_TITLE);
+	path = PATH.join(path, cd.CD_FILE);
 	path += ' [e]' // encoded;
 
 	if(ONLY) {
@@ -222,9 +222,9 @@ function createOuputDir(cd, out)
 
 
 /**
- * Called when the queue is complete for Encoding
+ * Called on PROGRAM EXIT 
  * Prints infos only if there were more than 2 files in the input queue
- * @param {Boolean} ue User Exit?
+ * @param {Boolean} ue User Abort??
  **/
 function printEStats(ue)
 {
@@ -259,8 +259,6 @@ function taskEncodeCD(file) { return new Promise( (res, rej) =>
 {
 	// DEV: I am making this an explicit Promise, because I need access to reject()
 	// DEV: Only the errors that are sure to break the whole queue will panic
-	//      e.g. Perhaps user wants to convert a whole queue, and one single cue was bad why halt the whole thing?
-	//		~ Thinking about it ~
 
 	let time0 = Date.now(); // Unix Time
 	
@@ -274,13 +272,17 @@ function taskEncodeCD(file) { return new Promise( (res, rej) =>
 	let encSize = 0;
 
 	let out0 = APP.output;
-	if (out0 == "=src") out0 = null; // null will do same dir as cue file
+	if (out0 == "=src") out0 = null; // force "same dir as cue file"
 
 	// This will create a unique output dir to put the tracks
 	let outDir = createOuputDir(cd, out0); // *THROWS {String}
+	workingDir = outDir;
 
-	// Naming convention of the tracks. TRACK NO will be appended right after + Extension
-	let trackName = APP.option.sh?"track":cd.CD_TITLE + ' - Track ';
+	// >> Declare how the tracks are going to be named
+	let templ = null;
+	if(APP.option.sh) templ = "track{no}";
+	if(APP.option.tname) templ = APP.option.tname;
+	cd.prepareFilenames(templ);
 
 	let z="  - ";	// Formating Text
 	// T.pac(`${z}Output : "${(out0?outDir:"same as .cue")}"\n`);
@@ -302,12 +304,12 @@ function taskEncodeCD(file) { return new Promise( (res, rej) =>
 	 * Generator that returns Promises to process each track of the CD
 	 * Either copy bytes to new files / encode audio to new files
 	 */
-	const gen = function*() {
+	const genTrackTask = function*() {
 
 		for(let i=0; i<cd.tracks.length; i++)
 		{
 			let tr = cd.tracks[i];
-			let outFile = PATH.join(outDir, trackName + tr.noStr);	// - without extension
+			let outFile = PATH.join(outDir,cd.readyFiles[i]);
 			let copyData = tr.isData || (ENC.ext==".bin");
 
 			if( (tr.isData && ONLY=="audio") || (!tr.isData && ONLY=="data") )
@@ -344,9 +346,9 @@ function taskEncodeCD(file) { return new Promise( (res, rej) =>
 
 	// --
 	// DEV: PromiseRun will exec promises in parallel with a hard limit
-	TL.PromiseRun(gen(), APP.option.p ?? DEF_THREADS, (compl) => {
+	TL.PromiseRun(genTrackTask(), APP.option.p ?? DEF_THREADS, (progress) => {
 		
-		TT.Prog.setTask(compl, cd.tracks.length);
+		TT.Prog.setTask(progress, cd.tracks.length);
 
 	}).then(() => {
 		
@@ -372,10 +374,9 @@ function taskEncodeCD(file) { return new Promise( (res, rej) =>
 			c.push(`REM | CD Size : ${byteStr}`);
 			c.push('REM | Audio Quality : ' + ENC.desc);
 			c.push(c[0], ''); 
-			c = c.concat(cd.generateCueForEncoded(trackName, ENC.ext));
+			c = c.concat(cd.buildCueFileForCBAE(ENC.ext));
 
-		// DEV: CD_TITLE is sanitized from CDInfo, it can be a filename OK
-		let cuef = cd.CD_TITLE + (ONLY?" (partial)":"") + ".cue";
+		let cuef = cd.CD_FILE + (ONLY?" (partial)":"") + ".cue";
 		try{
 			L.log("> All tracks Complete. Writing CUE file");
 			FS.writeFileSync(PATH.join(outDir, cuef), c.join('\n'));
@@ -386,6 +387,7 @@ function taskEncodeCD(file) { return new Promise( (res, rej) =>
 		ELOG.success++;
 		ELOG.size0 += cd.CD_SIZE;
 		ELOG.size1 += encSize;
+		workingDir = null;
 
 	}).catch(er=>{  
 
@@ -422,7 +424,7 @@ function taskEncodeCD(file) { return new Promise( (res, rej) =>
 
 
 APP.init({
-	name:"CBAE", ver:"1.1", desc:"Cue/Bin Audio Encoder",
+	name:"CBAE", ver:"1.2", desc:"Cue/Bin Audio Encoder",
 	actions:{
 		e : "!Encode cue/bin to output folder. Will create the new<|>track files and the new .cue file under a subfolder", // ! means default, it will set this action if you dont set any
 		i : "Display cue/bin information along with SHA1 checksum of tracks ",
@@ -435,8 +437,9 @@ APP.init({
 				"<yellow>VORBIS<!>:(64-500) | <yellow>OPUS<!>:(28-500) | <yellow>FLAC<!> | <yellow>RAW<!> <|>" +
 				"<darkgray,it> e.g. -enc OPUS:64 , -enc FLAC, -enc VORBIS:320<!>", 1],
 		p  : ["Set max parallel operations.", 1, DEF_THREADS],		// description,required,default value (just for help)
-		sh : ["Short filenames for new Tracks | <darkgray>e.g. 'track01.bin track02.ogg ..'<!>"],
-		only : ["Process only <yellow>{data, audio}<!> from the tracks<|>For advanced use <darkgray>| e.g. -only audio<!>",1]
+		sh : ["Short filenames for new Tracks | <darkgray>e.g. 'track01.bin track02.ogg ..'<!><|><darkgray>soon to be deprecated in favor of -tname<!>"],
+		only : ["Process only <yellow>{data, audio}<!> from the tracks<|>For advanced use <darkgray>| e.g. -only audio<!>",1],
+		tname: ["Customize tracknames with a template string.<|>Valid Tags <darkyellow>{no} {cdt} {tt} {ta} <darkgray> | e.g. \"track{no}\"<!>",1]
 	},
 
 help:{ 
@@ -469,7 +472,7 @@ post:
 	/** @type {{str:String, ext:String, desc:String}} */
 	var ENC;
 
-	// Encoding Operation Log
+	// Encoding Operation Log, used for printing infod
 	var ELOG = {
 		inputs:null,		// This is just a copy of APP.inputs
 		success:0,
@@ -478,6 +481,8 @@ post:
 		size0:0,			// Success CD raw size total
 		size1:0				// Success CD encoded size total
 	};
+
+	var workingDir = null;	// Keep the output folder the the current working task
 
 	T.setCur(false);
 	APP.printBanner();
@@ -493,7 +498,7 @@ post:
 		process.exit(0);
 	}
 
-	if(APP.action=='i')
+	if(APP.action=='i') //:action:i
 	{
 		APP.assertIO('im');
 		L.log('> Action: Information ::');
@@ -539,7 +544,7 @@ post:
 	}// -- end action (i)
 	
 
-	if(APP.action=='e')
+	if(APP.action=='e')	// :action:e
 	{
 		APP.assertIO('imo');
 		
@@ -570,6 +575,11 @@ post:
 			if(c==1223) {
 				T.ptag("<:darkmagenta,white> USER ABORT <!,n>");
 				printLine();
+				if(workingDir) {
+					try{
+						FS.renameSync(workingDir,`${workingDir} (ABORTED)`);
+					}catch(e){}
+				}
 			}
 			printEStats(c==1223);
 		});

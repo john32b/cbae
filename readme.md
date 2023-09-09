@@ -1,13 +1,13 @@
 ## What is it
 **CBAE** (**C**ue **B**in **A**udio **E**ncoder) is a CLI tool that can encode the audio tracks of a CD image with the **cue/bin** format into OPUS, FLAC, VORBIS or MP3. The new CD Image can then be used in software that supports loading `.cue` files with encoded audio tracks (mostly emulators like DosBox).
 
-⭐ **Updated 2023-08** -- Check the [CHANGELOG](#changelog-dna)
+⭐ **Updated 2023-09** -- Check the [CHANGELOG](#changelog-dna)
 
 **Features**
 - Supports merged `.bin` files, it can extract the audio from those
 - Generates new `.cue` files with correct parameters
 - Fast encoding, tracks are encoded in parallel
-- **NEW** display the SHA-1 hash of tracks
+- Display the SHA-1 hash of tracks *(useful for single file .bin files)*
 	
 ### Example
 ![CBAE running](media/s1.png)
@@ -64,41 +64,89 @@ cbae TombRaider2.cue -o . -enc VORBIS:128 -p 12
 
 # Print information for all cue files in current dir
 cbae i *.cue
+
+# Encode ONLY the audio tracks, output in the same dir as the
+# input file, name the generated tracks as "game-01, game-02..."
+cbae ~/game.cue -o =src -enc MP3:128 -only audio -tname "game-{no}"
 ```
 
-**For HELP and USAGE** call `cbae -help`  
+**For HELP and USAGE** call `cbae -help`
 
-**INPUT**. A valid .cue file, full path or relative path. Supports multiple inputs. 
+---
+
+### INPUT 
+
+A valid .cue file, full path or relative path. Supports multiple inputs. 
 - In Linux you can do file globbing,  `/home/janko/iso/**/*.cue`
 - In Windows basic file globbing is supported,  `c:\games\cd\*.cue`
 - For multiple inputs separate with space,  `game1.cue game2.cue ...`
-	
-**OUTPUT**. A directory where the new folders will be created. Full or relative path. 
+
+### OUTPUT
+
+A directory where the new folders will be created. Full or relative path. 
 - Set with `-o` . e.g. `cbae quake.cue -o /tmp/ ...` -- Will create `/tmp/quake [e]/`
 - Newly created folders come with the postfix `[e]`, for `Encoded` 
 - If you give `=src` then the output folder will be created on the base directory of the input .cue file.
 
-**ACTION** `e` Encode, *(default)*
+---
+
+### ACTION `e` : encode *(default)*
+
 The main thing, takes .cue files and encodes the audio tracks to a codec of your choice<sup>\*</sup> (*more later*). Generates a new .cue file and puts all the new files in a new folder under the declared *output*
 - This is the *default action* meaning, you can skip declaring it. e.g. `cbae e input.cue ...` is the same as `cbae input.cue ...`
 - Example : `cbae ~/iso/TR3.cue -o =src -enc VORBIS:96` --> Will encode `TR3.cue` using Vorbis 96kbps and will put everything in `~/iso/TR3 [e]`
 
-**ACTION** `i` Info. With this you can view some information on a .cue/.bin cd image. Filesizes and SHA-1 checksum.
+### ACTION `i` : info
 
-**OPTION** `-p` sets the maximum number of concurrent encodes that can run. It gets a default value of 3/4 the threads of your system.
-
-**OPTION**  `-enc` sets encoder and bitrate, given in a single parameter in the format `codec:kbps` 
-- e.g. `cbae .... -enc OPUS:80` -> will use OPUS codec at 80KBPS
-- e.g. `cbae .... -enc FLAC` -> will use FLAC. Notice that it doesn't require the `:KBPS` part
-
-**OPTION** `-only {audio/data}` You can choose to work on either the `audio` or `data` tracks of the CD. This is useful when you want to extract the data track of a merged CD *`-only data`*
-
-**OPTION** `-sh` Makes the generated track filenames in the form of `trackXX.ext`. This is useful in some cases, like the winmm CD Audio Emulator _(DxWnd)_, which needs the tracks to be named like that.  
-_e.g. (track01.bin, track02.ogg, track03.ogg ..... )_
+With this you can view some information on a .cue/.bin cd image.   
+Filesizes and SHA-1 checksum.
 
 ---
 
-**Here is a list of codecs supported, along with the valid range of kbps.**
+### OPTION `-p <integer>` 
+
+Sets the maximum number of concurrent encodes that can run. It gets a default value of 3/4 the threads of your system.
+
+
+### OPTION  `-enc <string>` 
+
+Sets encoder and bitrate, given in a single parameter in the format `codec:kbps`. Check the [list of supported tags](#list-of-supported-codecs).  
+- e.g. `cbae .... -enc OPUS:80` --> will use OPUS codec at 80KBPS
+- e.g. `cbae .... -enc FLAC` --> will use FLAC. Notice that it doesn't require the `:KBPS` part
+
+### OPTION `-only (audio|data)` 
+
+You can choose to work on either the `audio` or `data` tracks of the CD. This is useful when you want to extract the data track of a merged CD, where you would use *`-only data`*
+
+### OPTION `-sh` 
+
+Makes the generated track filenames in the form of `trackXX.ext`. This is useful in some cases, like the winmm CD Audio Emulator _(DxWnd)_, which needs the tracks to be named like that.  
+_e.g. (track01.bin, track02.ogg, track03.ogg ..... )_
+> NOTE: Soon to be deprecated in favor of `-tname`
+
+### OPTION `-tname <string>` **new** :star:
+
+Customize the filename of the generated tracks with the use of a template string. Supported tags are:
+
+|tag|whatis|
+|-|-|
+|`{no}` | Track Number |
+|`{cdt}`| CD Title     |
+|`{cda}`| CD Artist    |
+|`{tt}` | Track Title  | 
+|`{ta}` | Track Artist |
+
+**Examples** :
+- string : `"game {cdt} - Track {no}"` --> filename : `"game Quake 2 - Track 01"`
+- string : `"{no}-{ta}-{tt}"` --> Filename : `"01-Sasha-Magnetic North"`
+
+**Notes:**
+ - If a `.cue` file has TITLE tags for each and every track, then the default naming will use them.
+ - The Track Artist and CD Artist tags are actually the `PERFORMER` fields in the cue file
+
+---
+
+### List of supported codecs
 
 | Codec ID         | Min Kbps | Max Kbps |
 | ---------------- | -------- | -------- |
@@ -143,17 +191,21 @@ FILE "QUAKE 1 (1996) - Track 11.opus" OPUS
 	INDEX 01 00:00:00
 ```
 
-
 ## Software/Emulators that support .cue files with encoded audio files
-- **DosBox-staging** supports {Flac, Opus, Vorbis, Mp3, Wav} -- https://github.com/dosbox-staging/dosbox-staging#feature-differences
-- **DosBox-X** supports {Flac, Opus, Vorbis, Mp3, Wav} -- https://dosbox-x.com/wiki/DOSBox%E2%80%90X%E2%80%99s-Feature-Highlights
-- **Mednafen** supports : {Vorbis, Flac, Wav} -- https://mednafen.github.io/documentation/
+
+- **[DosBox-staging](https://github.com/dosbox-staging/dosbox-staging#for-users)** supports {Flac, Opus, Vorbis, Mp3, Wav}
+- **[DosBox-X](https://dosbox-x.com/wiki/DOSBox%E2%80%90X%E2%80%99s-Feature-Highlights)** supports {Flac, Opus, Vorbis, Mp3, Wav}
+- **[Mednafen](https://mednafen.github.io/documentation)** supports : {Vorbis, Flac, Wav} 
 - **[PCSX-Redux](https://pcsx-redux.consoledev.net/)** supports anything its linked ffmpeg dependency supports.
 - **[DxWnd](https://sourceforge.net/projects/dxwnd)** uses an audio emulator for CDDA games, supports {Ogg}
 - I'm sure there are more, *(help me expand this list?)*
 
-
 ## CHANGELOG :dna:
+
+### V1.2
+- Added option `-tname`, allows you to customize the Track Filenames using a simple templating system.
+- Cue Parser will read metadata Track Title and Track Artist from the cue file. Default track naming will use those fields if they exist. 
+- Aborting an operation with `ctrl+c` will append an `"aborted"` string to the output dirname.
 
 ### V1.1
 - Added option `-sh`, gives short names to created tracks `(track01.bin, track02.opus, ... etc)`. 
@@ -167,8 +219,6 @@ FILE "QUAKE 1 (1996) - Track 11.opus" OPUS
 
 ### v0.9
 - First version
-
----
 
 ## MORE :information_source:
 
