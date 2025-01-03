@@ -37,7 +37,7 @@ import {cdinfos} from './cdinfos.js';
 // L.set({ date: "", level: 4, file: "/tmp/log_cbae.txt", pos: true, stderr: true });
 
 // Use 3/4 of total threads for operations
-const DEF_THREADS = Math.ceil(cpus().length * 0.75);
+const DEF_THREADS = (Math.ceil(cpus().length * 0.75)) || 1;
 
 // -------------------------------------------------------;
 
