@@ -6,7 +6,8 @@
  * ---------------------------------
  * Author: John32B
  * Project homepage: https://github.com/john32b/cbae
- * Log:
+ * Short Log
+ * Date: (2023_09) V1.2 -tname option | properly reads track metadata
  * Date: (2023_08) V1.1 ECMAscript Modules | -sh option to produce short names | 
  * Date: (2023_02) v1.0 Hashes, extract Raw, only data/audio
  * Date: (2022_07) v0.9 First Published Version
@@ -424,7 +425,7 @@ function taskEncodeCD(file) { return new Promise( (res, rej) =>
 
 
 APP.init({
-	name:"CBAE", ver:"1.2", desc:"Cue/Bin Audio Encoder",
+	name:"CBAE", ver:"1.2.1", desc:"Cue/Bin Audio Encoder",
 	actions:{
 		e : "!Encode cue/bin to output folder. Will create the new<|>track files and the new .cue file under a subfolder", // ! means default, it will set this action if you dont set any
 		i : "Display cue/bin information along with SHA1 checksum of tracks ",
@@ -437,7 +438,7 @@ APP.init({
 				"<yellow>VORBIS<!>:(64-500) | <yellow>OPUS<!>:(28-500) | <yellow>FLAC<!> | <yellow>RAW<!> <|>" +
 				"<darkgray,it> e.g. -enc OPUS:64 , -enc FLAC, -enc VORBIS:320<!>", 1],
 		p  : ["Set max parallel operations.", 1, DEF_THREADS],		// description,required,default value (just for help)
-		sh : ["Short filenames for new Tracks | <darkgray>e.g. 'track01.bin track02.ogg ..'<!><|><darkgray>soon to be deprecated in favor of -tname<!>"],
+		sh : ["-Short filenames for new Tracks | <darkgray>e.g. 'track01.bin track02.ogg ..'<!><|><darkgray>soon to be deprecated in favor of -tname<!>"],
 		only : ["Process only <yellow>{data, audio}<!> from the tracks<|>For advanced use <darkgray>| e.g. -only audio<!>",1],
 		tname: ["Customize tracknames with a template string.<|>Valid Tags <darkyellow>{no} {cdt} {tt} {ta} <darkgray> | e.g. \"track{no}\"<!>",1]
 	},
